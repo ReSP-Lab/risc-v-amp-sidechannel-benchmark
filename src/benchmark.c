@@ -66,13 +66,19 @@ int rand_chosen=RANDOM_NUM;
 
 char* chain_arr;
 //char* start[L1_ASSOC*CACHE_LINE*L1_CACHE_SETS];
-char* start[10*L1_S];
+//char* start[10*L1_S];
+size_t start_size = 10*L1_S;
+char** start;
 
 int* maintain_arr;
 int status[4];
 
-int tar_block;
-int untar_block;
+struct tu_blocks {
+    int tar_block;
+    int untar_block;
+};
+
+struct tu_blocks* tu_block_p;
 
 
 void initialize_arrays()
@@ -87,6 +93,15 @@ void initialize_arrays()
     }
     memset(chain_arr, 0, MAX_ARRAY_SIZE*sizeof(char));
 
+    start = mmap (0, start_size*sizeof(char*), PROT_READ|PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    if (start == MAP_FAILED)
+    {
+        perror("mmap failed for start\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(start, 0, start_size*sizeof(char*));
+
     //  initiate maintain_arr
     maintain_arr = mmap(0, 1*sizeof(int), PROT_READ|PROT_WRITE,
         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
@@ -95,6 +110,16 @@ void initialize_arrays()
         perror("mmap failed for maintain_arr\n");
         exit(EXIT_FAILURE);
     }
+    //  initiate tar_block, untar_block
+    tu_block_p = mmap(0, 1*sizeof(struct tu_blocks), PROT_READ|PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    if (tu_block_p == MAP_FAILED)
+    {
+        perror("mmap failed for tu_block_p\n");
+        exit(EXIT_FAILURE);
+    }
+    tu_block_p->tar_block = 0;
+    tu_block_p->untar_block = 0;
 
     for(int i =0 ; i< MAX_ARRAY_SIZE; i++) /*probe_arr*/
         chain_arr[i]=/*(char)*/ MAX_ARRAY_SIZE-i; //copy on write
@@ -110,8 +135,18 @@ void free_mappings()
         exit(EXIT_FAILURE);
     }
 
+    if (munmap(start, start_size*sizeof(char)) == -1) {
+        perror("munmap failed for start\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (munmap(maintain_arr, 1*sizeof(int)) == -1) {
         perror("munmap failed for maintain_arr\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (munmap(tu_block_p, 1*sizeof(struct tu_blocks)) == -1) {
+        perror("munmap failed for tu_block_p\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -128,12 +163,12 @@ void build_eviction_set()
     // load into L1 L2
     for(int i=0;i<L1_ASSOC*8;i++)
     {
-        mread_mfenced(start[i]);
+        mread_mfenced(start[i]); // tar_block = 0
     }
 
     for(int i=0;i<L1_ASSOC*8;i++)
     {
-        mread_mfenced(start[i]+untar_block+NIB_OFFSET);
+        mread_mfenced(start[i]+NIB_OFFSET); // untar_block = 0
     }
 
     // leave time to load data
@@ -153,8 +188,8 @@ void step0(int i, int j, int m)
     while(maintain_arr[0]!=STEP0_RUN)
         sched_yield();
 
-    tar_block = (rand()%4)*8;
-    untar_block = (rand()%4)*8;
+    tu_block_p->tar_block = (rand()%4)*8;
+    tu_block_p->untar_block = (rand()%4)*8;
 
     //if (j==1 && i==299 && m==30) printf("sched_getcpu_in_step_1 = %d\n", sched_getcpu());
 
@@ -171,6 +206,9 @@ void step1(int i, int j, int m)
 {
     while(maintain_arr[0]!=STEP1_RUN)
         sched_yield();
+
+    int tar_block = tu_block_p->tar_block;
+    int untar_block = tu_block_p->untar_block;
 
 #define VUL_TYPE    VUL1
 
@@ -217,6 +255,9 @@ void step2(int i, int j, int m)
 {
     while(maintain_arr[0]!=STEP2_RUN)
         sched_yield();
+
+    int tar_block = tu_block_p->tar_block;
+    int untar_block = tu_block_p->untar_block;
 
 #if IF_PLAIN
         //
@@ -268,6 +309,9 @@ void step3(int i, int j, int m, int round_rand)
 {
     while(maintain_arr[0]!=STEP3_RUN)
         sched_yield();
+
+    int tar_block = tu_block_p->tar_block;
+    int untar_block = tu_block_p->untar_block;
 
 #define VUL_TYPE    VUL3
 #undef  LAST_STEP
