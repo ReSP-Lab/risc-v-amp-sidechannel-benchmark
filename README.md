@@ -1,9 +1,12 @@
 # Systematic Assessment of Cache Timing Vulnerabilities on RISC-V Processors
 
-This repository contains the translated benchmark suite used for our
-submission to ESORICS 2025.
+This repository contains the translated benchmark suite used for
+[our published article from ESORICS 2025](https://doi.org/10.1007/978-3-032-07894-0_2).
+An arXiv version of the article is available
+[here](https://arxiv.org/abs/2510.08272).
 
 Authors: Cédrick Austa, Jan Tobias Mühlberg, and Jean-Michel Dricot.
+
 
 ## Original work
 
@@ -79,7 +82,12 @@ To evaluate the existing vulnerabilities, you have to:
 5. download the output folder;
 6. adapt the CPU list in `scripts/plot_benchmark.py` and plot the results with `python scripts/plot_benchmark.py`.
 
-## Images used with experiments for ESORICS 2025 submission
+## ESORICS 2025 submission
+
+The original version of the benchmark for ESORICS 2025 can be found in the
+`esorics2025` branch from the current repository.
+
+### Images used with experiments for ESORICS 2025 submission
 
 BeagleV Ahead (`target_symbol=BV_AHEAD`):
 - BeagleBoard.org Ubuntu 23.04 Xfce Image 2023-07-05
