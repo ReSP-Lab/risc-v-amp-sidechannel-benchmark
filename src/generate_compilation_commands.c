@@ -36,10 +36,12 @@ const char* help =
 "   -m [machine_name]   should correspond to associated macro"
                             " (case sensitive)\n"
 "   -c [max_cycle]      maximum cycles for a memory related operation\n"
-"   -n [number_tests]   number of tests per run\n"
-"   -r [runs]           number of runs\n"
-"   -g [gcc_compiler]   name or path of the GCC compiler to use\n"
-"   -p                  generate preprocessed benchmark files\n";
+"   -n [number_tests]   number of tests per sample\n"
+"   -s [samples]        number of samples\n"
+"   -g [gcc_toolchain]  name or path of the GCC compiler toolchain to use"
+    " (no gcc suffix)\n"
+"   -f [flags]          additional compilation flags to provide\n"
+"   -a                  use AMP-based setup\n";
 //"   -p [probe size]     number of different candidate of \"u\"\n"
 
 const int required_options = 6;
@@ -48,16 +50,17 @@ int option_num = 0;
 
 char* attack_machine = NULL;
 int max_cycle = 8000;
-int num_test = 10;
+int num_test = 1;
 //int probe_size = 3;
-int runs = 30;
-char* gcc_compiler = "gcc";
-int preprocessed_files = 0;
+int samples = 300;
+char* gcc_toolchain = "";
+char* compl_flags = "";
+int amp_setup = 0;
 
 void parse_options(int argc, char const *argv[])
 {
-    //while (( option = getopt(argc, argv, "m:c:n:p:r:g:")) != -1)
-    while (( option = getopt(argc, argv, "m:c:n:r:g:ph")) != -1)
+    //while (( option = getopt(argc, argv, "m:c:n:p:s:g:")) != -1)
+    while (( option = getopt(argc, argv, "m:c:n:s:g:f:ah")) != -1)
     {
         switch (option)
         {
@@ -79,23 +82,28 @@ void parse_options(int argc, char const *argv[])
                 option_num++;
                 break;
             */
-            case 'r':
-                runs = atoi(optarg);
+            case 's':
+                samples = atoi(optarg);
                 option_num++;
                 break;
             case 'g':
-                gcc_compiler = optarg;
+                gcc_toolchain = optarg;
                 option_num++;
                 break;
-            case 'p':
-                preprocessed_files = 1;
+            case 'f':
+                compl_flags = optarg;
+                option_num++;
+                break;
+            case 'a':
+                amp_setup = 1;
                 break;
             case 'h':
                 fprintf(stdout, help, argv[0]);
                 exit(EXIT_SUCCESS);
             case '?':
                 if (optopt == 'm' || optopt == 'c' || optopt == 'n'
-                        || optopt == 's' || optopt == 'r' || optopt == 'g')
+                        || optopt == 's' || optopt == 'r' || optopt == 'g'
+                        || optopt == 'f')
                 {
                     fprintf(stderr,
                             "Option -%c requires an argument.\n\n",
@@ -159,26 +167,49 @@ int main(int argc, char const *argv[])
     parse_options(argc, argv);
 
     char* file_name[75];
-    //sprintf(file_name, "benchmark_scripts/%s_EachRun%d_NumTest%d_ProbeSize%d_MaxCycle%d", attack_machine, runs, num_test, probe_size, max_cycle);
-    sprintf(file_name, "benchmark_scripts/%s_EachRun%d_NumTest%d_MaxCycle%d", attack_machine, runs, num_test, max_cycle);
+    //sprintf(file_name, "benchmark_scripts/%s_NumSamples%d_NumTest%d_ProbeSize%d_MaxCycle%d", attack_machine, samples, num_test, probe_size, max_cycle);
+
+#ifndef I_CACHE_ANALYSIS
+    sprintf(file_name,
+            "benchmark_scripts/%s_NumSamples%d_NumTest%d_MaxCycle%d",
+            attack_machine, samples, num_test, max_cycle);
+#else
+    sprintf(file_name,
+            "benchmark_scripts/%s_NumSamples%d_NumTest%d_MaxCycle%d"
+            "_l1icache",
+            attack_machine, samples, num_test, max_cycle);
+#endif /* ifndef I_CACHE_ANALYSIS */
+
     FILE *fout = fopen(strcat(file_name,".sh"), "w");
     if(fout == NULL) {
         printf("\nCould not open file fout\n");
         return -1;
     }
 
-    char* command_basis[150];
-    char* object_folder[75];
-    char* binary_folder[75];
-    char* binary_name[50];
-    char* binary_path[100];
-    char* plain[10];
+    char command_basis[350];
+    char object_folder[125];
+    char binary_folder[100];
+    char binary_name[75];
+    char binary_path[450];
+    char plain[10];
 
     sprintf(command_basis,
-            "%s -Iinclude/ -DBOARD=%s -DON_MULTIPLE_LINES=%d -O0 ",
-            gcc_compiler, attack_machine, ON_MULTIPLE_LINES
+            "%sgcc -Iinclude/ %s -DBOARD=%s -DON_MULTIPLE_LINES=%d -O0 ",
+            gcc_toolchain, compl_flags, attack_machine, ON_MULTIPLE_LINES
     );
-    sprintf(binary_folder, "benchmark_output/%s", attack_machine);
+
+#ifdef I_CACHE_ANALYSIS
+    const char* cache_suffix = "_l1icache";
+#else
+    const char* cache_suffix = "";
+#endif
+
+    sprintf(
+            binary_folder,
+            "benchmark_output/%s%s%s",
+            attack_machine, amp_setup ? "_amp" : "_smp", cache_suffix
+    );
+
     sprintf(object_folder, "%s/objects", binary_folder);
 
     fprintf(fout, "#!/bin/sh\n");
@@ -186,10 +217,15 @@ int main(int argc, char const *argv[])
     fprintf(fout, "mkdir -p %s\n",
             object_folder);
     fprintf(fout, "echo \"Starting compilation...\"\n");
-    fprintf(fout, "%s -c src/evict.c -o %s/evict.o\n",
-            command_basis, object_folder);
-    fprintf(fout, "%s -c src/stats.c -o %s/stats.o\n",
-            command_basis, object_folder);
+    if (!amp_setup)
+    {
+        fprintf(fout, "%s -c src/rng.c -o %s/rng.o\n",
+                command_basis, object_folder);
+        fprintf(fout, "%s -c src/evict.c -o %s/evict.o\n",
+                command_basis, object_folder);
+        fprintf(fout, "%s -c src/stats.c -o %s/stats.o\n",
+                command_basis, object_folder);
+    }
 
     srand(1234);
     int grids[4913]= {0};
@@ -248,6 +284,11 @@ int main(int argc, char const *argv[])
                     {
                         skip_case = false;
 
+#ifdef I_CACHE_ANALYSIS
+                        if (if_write_1 || if_write_2 || if_write_3)
+                            skip_case = true;
+#endif /* ifdef I_CACHE_ANALYSIS */
+
                         // assign steps
                         int attacker_l_list[3] = {0};
                         int victim_l_list[3] = {0};
@@ -296,6 +337,7 @@ int main(int argc, char const *argv[])
 #ifdef NO_FLUSH
                                 skip_case = true;
 #endif /* ifdef NO_FLUSH */
+
                                 // if location+access is in local list
                                 if (find_index(L_list, 10, total_arr[pattern_counter][2*list_num+2])!=-1)
                                 {
@@ -388,10 +430,17 @@ int main(int argc, char const *argv[])
                             }
                         }
 
+                        bool shares_core =
+                            (lr_num[0] > 0 && lr_num[1] > 0) ||
+                            (lr_num[2] > 0 && lr_num[3] > 0);
+
+                        // filter when SMT is used but core is not shared
+                        if (affinity_rel == 1 && !shares_core)
+                            skip_case = true;
+
                         char* flags[200];
                         memset(flags, 0, sizeof(flags));
                         char* buffer[50];
-                        // TODO: don't forget the flags
                         for (int list_num = 0; list_num < 3; ++list_num)
                         {
                             if (attacker_l_list[list_num])
@@ -438,15 +487,21 @@ int main(int argc, char const *argv[])
                         strcat(flags, buffer);
                         sprintf(buffer, "-DSKIP_CASE=%d ", skip_case);
                         strcat(flags, buffer);
+                        sprintf(buffer, "-DVUL_N=%d ", vul_num_order+1);
+                        strcat(flags, buffer);
                         sprintf(buffer, "-DPATTERN=%d ", pattern_counter);
                         strcat(flags, buffer);
 
-                        sprintf(buffer, "-DEACH_RUN=%d ", runs);
+                        sprintf(buffer, "-DNUM_SAMPLES=%d ", samples);
                         strcat(flags, buffer);
                         sprintf(buffer, "-DNUM_TEST=%d ", num_test);
                         strcat(flags, buffer);
                         sprintf(buffer, "-DMAX_CYCLE=%d ", max_cycle);
                         strcat(flags, buffer);
+#ifdef I_CACHE_ANALYSIS
+                        sprintf(buffer, "-DI_CACHE_ANALYSIS ");
+                        strcat(flags, buffer);
+#endif /* ifdef I_CACHE_ANALYSIS */
 
                         if (if_plain)
                         {
@@ -456,31 +511,68 @@ int main(int argc, char const *argv[])
                         {
                             sprintf(plain, "");
                         }
-                        sprintf(binary_name, "%02d_AccOne%d_AccTwo%d_AccThr%d_Aff%d%s_%04d",
+
+#ifndef I_CACHE_ANALYSIS
+                        sprintf(binary_name,
+                                "%02d_AccOne%d_AccTwo%d_AccThr%d_Aff%d%s"
+                                "_%04d",
                                 vul_num_order,
                                 if_write_1, if_write_2, if_write_3,
                                 affinity_rel, plain, pattern_counter
                         );
-                        sprintf(binary_path, "%s/%s", binary_folder, binary_name);
+#else
+                        sprintf(binary_name,
+                                "%02d_AccOne%d_AccTwo%d_AccThr%d_Aff%d%s"
+                                "_%04d_l1icache",
+                                vul_num_order,
+                                if_write_1, if_write_2, if_write_3,
+                                affinity_rel, plain, pattern_counter
+                        );
+#endif /* ifndef I_CACHE_ANALYSIS */
 
-                        if (preprocessed_files)
+                        if (!amp_setup)
                         {
-                        fprintf(fout,
-                            "%s %s -save-temps=obj -c "
-                            "src/benchmark.c -o %s/%s.o\n",
-                            command_basis, flags, object_folder, binary_name);
-                        fprintf(fout,
-                            "%s %s/evict.o %s/stats.o %s/%s.o -o %s -lm\n",
-                            gcc_compiler, object_folder, object_folder,
-                            object_folder, binary_name, binary_path);
+                            sprintf(binary_path, "%s/%s",
+                                    binary_folder, binary_name);
+                            fprintf(fout, "%s %s -c src/%s.c -o %s/%s.o\n",
+                                command_basis, flags, "benchmark_utils",
+                                object_folder, "benchmark_utils");
+                            fprintf(fout, "%s %s -c "
+                                          "src/linux_setup/%s.c "
+                                          "-o %s/%s.o\n",
+                                command_basis, flags, "benchmark_implem",
+                                object_folder, "benchmark_implem");
+                            fprintf(fout, "%s %s -c src/%s.c -o %s/%s.o\n",
+                                command_basis, flags, "benchmark",
+                                object_folder, "benchmark");
+                            fprintf(fout, "%s %s/*.o -o %s -lm\n",
+                                command_basis, object_folder, binary_path);
                         }
                         else
                         {
-                        fprintf(fout, "%s %s -c src/benchmark.c -o %s/benchmark.o\n",
-                            command_basis, flags, object_folder);
-                        fprintf(fout, "%s %s/evict.o %s/stats.o %s/benchmark.o -o %s -lm\n",
-                            gcc_compiler, object_folder, object_folder,
-                            object_folder, binary_path);
+                            sprintf(binary_path, "%s/%s",
+                                    binary_folder, binary_name);
+                            fprintf(fout,
+                                    "%s %s "
+                                    "-nostdlib -T amp-setup/linker_payload.ld "
+                                    "src/rng.c "
+                                    "src/evict.c "
+                                    "src/benchmark_utils.c "
+                                    "src/amp_setup/stdlib_substitute.c "
+                                    "src/amp_setup/benchmark_implem.c "
+                                    "src/benchmark.c "
+                                    "-o %s/payload.elf\n",
+                                    command_basis, flags,
+                                    object_folder);
+                            fprintf(fout,
+                                    "%sobjcopy -O binary "
+                                    "%s/payload.elf %s\n",
+                                    gcc_toolchain, object_folder, binary_path);
+                            fprintf(fout,
+                                    "%sobjdump -S "
+                                    "%s/payload.elf > %s/%s.s\n",
+                                    gcc_toolchain, object_folder,
+                                    object_folder, binary_name);
                         }
                     }
                     }

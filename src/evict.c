@@ -34,7 +34,7 @@
  * @param array  pointer to the address of an array element;
  * @param c,d,l,s  parameters from Gruss' paper.
  */
-void evict(char** array, int c, int d, int l, int s)
+void evict(char** array, int c, int d, int l, int s, void (*operation)(char*))
 {
     for (int _s = 1; _s <= s-d+1; _s+=l)
     {
@@ -42,7 +42,7 @@ void evict(char** array, int c, int d, int l, int s)
         {
             for (int _d = 0; _d < d; _d++)
             {
-                mread(array[_s+_d]);
+                operation(array[_s+_d]);
             }
         }
     }

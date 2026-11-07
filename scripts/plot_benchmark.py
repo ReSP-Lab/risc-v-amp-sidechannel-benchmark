@@ -28,6 +28,7 @@ from matplotlib.ticker import (AutoMinorLocator, MultipleLocator, FixedLocator)
 import numpy as np
 import seaborn as sns
 import sys
+import argparse
 
 case_array = [
         3,4,3,4,3,4,3,4,2,0,2,0,2,0,2,0,
@@ -148,7 +149,18 @@ CONFIG_NUM = 16
 TOTAL_CASES = 88*16
 TARGET_NUM = 3
 
-CPU_LIST = ["C910", "U54", "U74"]
+#CPU_LIST = ["K1", "TH1520", "FU740", "MPFS025T"]
+CPU_LIST = [
+        "K1 - SMP",
+        "K1 - AMP",
+        #"K1 - SMP RC",
+        "K1 - AMP RC",
+        "TH1520 - SMP",
+        "TH1520 - AMP",
+        "FU740 - SMP",
+        "FU740 - AMP",
+        #"MPFS025T"
+]
 CPU_LABEL = "CPUs"
 #CPU_LABEL = "CPU type"
 #TIMING_LABEL= "Timing type"
@@ -202,14 +214,36 @@ def build_dict_entry(file_name, vul_num):
     return entry
 
 def add_target_case(y, target_name, target_file_name):
-    y[CPU_LABEL] = [*y[CPU_LABEL],
-                     *[cpu_name for _ in range(TOTAL_CASES)]]
-    y["Result"] = [*y["Result"],
-                   *build_dict_entry(cpu_file, VUL_NUM)]
+    results = build_dict_entry(target_file_name, VUL_NUM)
+    if len(results) != TOTAL_CASES:
+        raise ValueError(
+            f"{target_file_name}: expected {TOTAL_CASES} cases, "
+            f"got {len(results)}"
+        )
+    y[CPU_LABEL].extend([target_name] * TOTAL_CASES)
+    y["Result"].extend(results)
 
 
 # main execution
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Plot vulnerability types summaries."
+    )
+    parser.add_argument("output_file", help="Output filename without .eps")
+    parser.add_argument("--i-cache-analysis", action="store_true",
+                        help="I cache analysis")
+
+    args = parser.parse_args()
+    if args.i_cache_analysis:
+        sfx = "-icache"
+        smp_sfx = "_icache"
+        #dodge = False
+        dodge = True
+    else:
+        sfx = ""
+        smp_sfx = ""
+        dodge = True
+
     t = [i+1 for _ in range(VUL_NUM) for i in range(CONFIG_NUM)]
     v = [i+1 for i in range(VUL_NUM) for _ in range(CONFIG_NUM)]
 
@@ -219,81 +253,75 @@ if __name__ == "__main__":
     y[CPU_LABEL] = []
     y["Result"] = []
 
-    cpu_name = "U74"
-    cpu_file = "results/unmatched_benchmark-output/unmatched.output.res"
+    cpu_name = "FU740 - AMP"
+    cpu_file = f"results/benchmark-outputs/unmatched_amp_s5000-n1{sfx}/unmatched0.res"
     add_target_case(y, cpu_name, cpu_file)
     y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
     y["Vulnerability"] = [*y["Vulnerability"], *v]
 
-    cpu_name = "C910"
-    cpu_file = "results/ahead_benchmark-output/ahead.output.res"
+    cpu_name = "FU740 - SMP"
+    cpu_file = "results/benchmark-outputs/unmatched_smp_s5000-n1_results/" \
+            + f"unmatched_smp_s5000-n1{smp_sfx}.res"
     add_target_case(y, cpu_name, cpu_file)
     y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
     y["Vulnerability"] = [*y["Vulnerability"], *v]
 
-    cpu_name = "U54"
-    cpu_file = "results/fire_benchmark-output/fire.output.res"
+    cpu_name = "K1 - AMP"
+    cpu_file = f"results/benchmark-outputs/bpi_f3_amp_s5000-n1{sfx}/bpi_f31.res"
+    #cpu_file = f"results/benchmark-outputs/tmp-res/bpi_f3-s5000-n1{sfx}/0.res"
     add_target_case(y, cpu_name, cpu_file)
     y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
     y["Vulnerability"] = [*y["Vulnerability"], *v]
 
-    y_or = []
-    y_and = []
-    y_none = []
-
-    for i in range(VUL_NUM):
-        for j in range(CONFIG_NUM):
-            res = -2
-            for k in range(TARGET_NUM):
-                val = y["Result"][k*TOTAL_CASES+i*CONFIG_NUM+j]
-                if res == -2:
-                    res = 0
-                if val < 0:
-                    val = 0
-                res = res or val
-            y_or.append(res)
-
-    for i in range(VUL_NUM):
-        for j in range(CONFIG_NUM):
-            res = -2
-            for k in range(TARGET_NUM):
-                val = y["Result"][k*TOTAL_CASES+i*CONFIG_NUM+j]
-                if res == -2:
-                    res = 1
-                if val < 0:
-                    val = 0
-                res = res and val
-            y_and.append(res)
-
-    for i in range(VUL_NUM):
-        for j in range(CONFIG_NUM):
-            res = -2
-            for k in range(TARGET_NUM):
-                val = y["Result"][k*TOTAL_CASES+i*CONFIG_NUM+j]
-                if res == -2:
-                    res = 1
-                if val > 0:
-                    val = 0
-                elif val == 0:
-                    val = 1
-                res = res and val
-            y_none.append(res)
-
-    cpu_name = AND_CPU_NAME
-    y[CPU_LABEL] = [*y[CPU_LABEL],
-                     *[cpu_name for _ in range(TOTAL_CASES)]]
-    y["Result"] = [*y["Result"], *y_and]
+    cpu_name = "K1 - AMP RC"
+    cpu_file = "results/benchmark-outputs/" \
+               + f"bpi_f3_remote-cluster_s5000-n1{sfx}/bpi_f30.res"
+    add_target_case(y, cpu_name, cpu_file)
     y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
     y["Vulnerability"] = [*y["Vulnerability"], *v]
 
-    cpu_name = NONE_CPU_NAME
-    y[CPU_LABEL] = [*y[CPU_LABEL],
-                     *[cpu_name for _ in range(TOTAL_CASES)]]
-    y["Result"] = [*y["Result"], *y_none]
+    cpu_name = "K1 - SMP"
+    cpu_file = "results/benchmark-outputs/bpi_f3_smp_s5000-n1_results/" \
+               + f"bpi_f3_smp_s5000-n1{smp_sfx}.res"
+    add_target_case(y, cpu_name, cpu_file)
+    y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
+    y["Vulnerability"] = [*y["Vulnerability"], *v]
+
+    cpu_name = "TH1520 - AMP"
+    cpu_file = f"results/benchmark-outputs/bv_ahead_amp_s5000-n1{sfx}/bv_ahead0.res"
+    add_target_case(y, cpu_name, cpu_file)
+    y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
+    y["Vulnerability"] = [*y["Vulnerability"], *v]
+
+    cpu_name = "TH1520 - SMP"
+    cpu_file = f"results/benchmark-outputs/bv_ahead_smp_s5000-n1_results/" \
+               +f"bv_ahead_smp_s5000-n1{smp_sfx}.res"
+    add_target_case(y, cpu_name, cpu_file)
     y[CONFIG_LABEL] = [*y[CONFIG_LABEL], *t]
     y["Vulnerability"] = [*y["Vulnerability"], *v]
 
     original_table = pd.DataFrame(y)
+
+    keys = [CPU_LABEL, "Vulnerability", CONFIG_LABEL]
+    expected = pd.MultiIndex.from_product(
+        [CPU_LIST, range(1, VUL_NUM + 1), range(1, CONFIG_NUM + 1)],
+        names=keys,
+    )
+    actual = pd.MultiIndex.from_frame(original_table[keys])
+
+    print(expected.difference(actual))
+    print(actual.difference(expected))
+
+    if (
+        actual.has_duplicates
+        or len(expected.difference(actual))
+        or len(actual.difference(expected))
+    ):
+        raise ValueError("Missing, duplicated, or unexpected benchmark cases")
+
+    if not original_table["Result"].isin([-2, -1, 0, 1]).all():
+        raise ValueError("Unexpected result code")
+
 
     table = original_table[original_table["Result"] > 0].copy()
     redundant_table = original_table[
@@ -318,7 +346,7 @@ if __name__ == "__main__":
             as_cmap=True
     )
     #print(palette.as_hex())
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(14, 7))
     # get discrete equivalent of the CMAP as a palette
     ncolors = len(config_mapping.values())
     custom_palette = [ palette(i/(ncolors-1))
@@ -341,7 +369,7 @@ if __name__ == "__main__":
             hue=CONFIG_LABEL,
             #hue_order=config_mapping.values(),
             hue_order=sub_config_mapping.values(),
-            dodge=True,
+            dodge=dodge,
             order = [
                 *CPU_LIST,
                 #AND_CPU_NAME,
@@ -350,6 +378,40 @@ if __name__ == "__main__":
             orient='h', ax=ax,
             palette=custom_palette[::2],
     )
+
+    # Select the same time-slicing configurations as the main plot
+    unsupported_sub_table = unsupported_table.loc[
+        unsupported_table[CONFIG_LABEL].isin(sub_config_mapping)
+    ].copy()
+    unsupported_sub_table[CONFIG_LABEL] = (
+        unsupported_sub_table[CONFIG_LABEL].map(sub_config_mapping)
+    )
+
+    if not unsupported_sub_table.empty:
+        sns.swarmplot(
+            data=unsupported_sub_table,
+            x="Vulnerability",
+            y=CPU_LABEL,
+            hue=CONFIG_LABEL,
+            hue_order=list(sub_config_mapping.values()),
+            order=CPU_LIST,
+            palette=["#A0B0B0"],
+            dodge=dodge,
+            orient="h",
+            marker="x",
+            linewidth=0.5,
+            size=5,
+            legend=False,
+            ax=ax,
+        )
+
+        # Add a legend entry explaining the cross marker.
+        ax.plot(
+            [], [], marker="x", linestyle="none",
+            color="#A0B0B0", label="Unsupported",
+        )
+        ax.legend(title=CONFIG_LABEL)
+
 
     # Optional separation on 3rd step: access (left) or invalidation (right)
     #plt.axvline(x=44.5, color='black', lw=0.75, alpha=0.5)
@@ -370,61 +432,83 @@ if __name__ == "__main__":
             ax, 'best', bbox_to_anchor=(1, 1), frameon=False,
             title=CONFIG_LABEL
     )
+    for i in range(len(CPU_LIST) - 1):
+        ax.axhline(
+            y=i + 0.5,
+            color='#CCCCCC',
+            linewidth=0.7,
+            linestyle="--",
+            zorder=0,
+    )
+
     plt.tight_layout(pad=1)
-    fig.savefig("figures/benchmark_output.eps", dpi=1000)#, format="png")
+    fig.savefig(f"figures/{args.output_file}.eps", dpi=1000)#, format="png")
     plt.close(fig)
 
 
-    table = original_table.copy()
-    table = table[table["Result"]>=0]
-
-    # Compress the table with a logical OR operation on timing type
-    # results
-    table["All"] = table["Result"].copy()
-    table = table.groupby(
-            [CPU_LABEL, "Vulnerability"], as_index=False
-            ).agg(
-                    {CONFIG_LABEL: 'any',
-                     "Result": 'any',
-                     "All": 'all'}
+    # - Result Analysis -
+    # Detection and availability are separate properties.
+    evaluated = original_table.assign(
+        Detected=original_table["Result"].eq(1),
+        Available=original_table["Result"].ge(0),
     )
-    table.loc[table[CPU_LABEL] == NONE_CPU_NAME, "Result"] =\
-            table.loc[table[CPU_LABEL] == NONE_CPU_NAME, "All"]
-    table = table.drop(CONFIG_LABEL, axis=1)
-    table = table.drop("All", axis=1)
-    compressed_table = table.copy()
-    table = table[table["Result"] > 0]
 
-    all_but_none_index =\
-        np.logical_and(compressed_table[CPU_LABEL]!=NONE_CPU_NAME,
-                compressed_table[CPU_LABEL]!=AND_CPU_NAME)
-    and_results = compressed_table[all_but_none_index].groupby(
-            ["Vulnerability"]).agg(
-                    {"Result": 'all'}
+    per_cpu = evaluated.groupby(
+        [CPU_LABEL, "Vulnerability"], as_index=False
+    ).agg(
+        Result=("Detected", "any"),
+        Available=("Available", "any"),
     )
-    compressed_table.loc[compressed_table[CPU_LABEL] == AND_CPU_NAME,
-                         ["Result"]] = and_results.values.tolist()
 
-    compressed_table = compressed_table[compressed_table["Result"] > 0]
+    across_cpus = per_cpu.groupby(
+        "Vulnerability", as_index=False
+    ).agg(
+        AllDetected=("Result", "all"),
+        AnyDetected=("Result", "any"),
+        AllAvailable=("Available", "all"),
+    )
+
+    all_rows = across_cpus[["Vulnerability"]].copy()
+    all_rows[CPU_LABEL] = AND_CPU_NAME
+    all_rows["Result"] = across_cpus["AllDetected"]
+
+    none_rows = across_cpus[["Vulnerability"]].copy()
+    none_rows[CPU_LABEL] = NONE_CPU_NAME
+    none_rows["Result"] = (
+        across_cpus["AllAvailable"] & ~across_cpus["AnyDetected"]
+    )
+
+    summary_table = pd.concat(
+        [
+            per_cpu[[CPU_LABEL, "Vulnerability", "Result"]],
+            all_rows,
+            none_rows,
+        ],
+        ignore_index=True,
+    )
+
+    compressed_table = summary_table.loc[
+        summary_table["Result"]
+    ].copy()
 
 
     palette = [
-            *[sns.mpl_palette('viridis', 3)[0] for _ in range(3)],
+            *[sns.mpl_palette('viridis', 7)[0] for _ in range(7)],
             #'#fc801f',
             '#fc3a2f', '#fc801f']
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 4))
     sns.swarmplot(
             x="Vulnerability", y=CPU_LABEL,
             data=compressed_table,
             order = [
                 *CPU_LIST,
-                AND_CPU_NAME,
-                NONE_CPU_NAME,
+                #AND_CPU_NAME,
+                #NONE_CPU_NAME,
             ],
             hue_order = [
                 *CPU_LIST,
-                AND_CPU_NAME,
-                NONE_CPU_NAME,
+                #AND_CPU_NAME,
+                #NONE_CPU_NAME,
             ],
             orient='h', ax=ax,
             hue = CPU_LABEL,
@@ -441,55 +525,43 @@ if __name__ == "__main__":
     ax.grid(which='major', color='#CCCCCC', linestyle='--')
     ax.grid(which='minor', color='#CCCCCC', linestyle=':')
     plt.tight_layout(pad=1)
-    fig.savefig("figures/compressed_benchmark_output.eps", dpi=1000)#, format="png")
+    fig.savefig(f"figures/compressed_benchmark_output{sfx}.eps", dpi=1000)#, format="png")
     plt.close(fig)
 
 
     # COMPUTE CTVS
+    groups = {
+        "All": range(1, VUL_NUM + 1),
+        "IA": IA_BASE,
+        "IS": IS_BASE,
+        "ISA": ISA_BASE,
+        "EA": EA_BASE,
+        "ES": ES_BASE,
+        "ESA": ESA_BASE,
+    }
+    row_order = [*CPU_LIST, AND_CPU_NAME, NONE_CPU_NAME]
+
     ctvs_dict = {}
-    tmp_table = table[[CPU_LABEL, "Vulnerability", "Result"]].groupby(
-            [CPU_LABEL, "Vulnerability"], as_index=False).agg(
-                    {"Result": 'any'}
+    for name, vulnerabilities in groups.items():
+        counts = (
+            summary_table.loc[
+                summary_table["Vulnerability"].isin(vulnerabilities)
+            ]
+            .groupby(CPU_LABEL)["Result"]
+            .sum()
+            .reindex(row_order, fill_value=0)
+            .astype(int)
+        )
+        ctvs_dict[name] = counts.rename("Result").reset_index()
+
+    category_sum = sum(
+        ctvs_dict[name].set_index(CPU_LABEL)["Result"]
+        for name in groups
+        if name != "All"
     )
-    _tmp_table = compressed_table[[CPU_LABEL, "Vulnerability", "Result"]
-            ].groupby(
-                [CPU_LABEL, "Vulnerability"], as_index=False).agg(
-                        {"Result": 'any'}
-    )
-    ctvs_dict["All"] = _tmp_table[[CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
-    ctvs_dict["IA"] = tmp_table.loc[tmp_table["Vulnerability"].isin(IA_BASE),
-                                [CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
-    ctvs_dict["IS"] = tmp_table.loc[tmp_table["Vulnerability"].isin(IS_BASE),
-                                [CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
-    ctvs_dict["ISA"] = tmp_table.loc[tmp_table["Vulnerability"].isin(ISA_BASE),
-                                [CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
-    ctvs_dict["EA"] = tmp_table.loc[tmp_table["Vulnerability"].isin(EA_BASE),
-                                [CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
-    ctvs_dict["ES"] = tmp_table.loc[tmp_table["Vulnerability"].isin(ES_BASE),
-                                [CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
-    ctvs_dict["ESA"] = tmp_table.loc[tmp_table["Vulnerability"].isin(ESA_BASE),
-                                [CPU_LABEL, "Result"]].groupby(
-            [CPU_LABEL], as_index=False).agg(
-                    {"Result": 'sum'}
-    )
+    assert category_sum.equals(
+        ctvs_dict["All"].set_index(CPU_LABEL)["Result"]
+    ), "Category counts do not sum to the total"
 
     print(f"\nAll the vulnerability types found vulnerable for the machines (/88): ")
     print(ctvs_dict["All"])
@@ -512,12 +584,12 @@ if __name__ == "__main__":
 
     def get_access_inv(vulnerability, config):
         if vulnerability <= VUL_NUM/2:
-            if config % 4 == 0 or config % 4 == 1:
+            if config % 4 in (1,2):
                 return READ_ACC
             else:
                 return WRITE_ACC
         else:
-            if config % 4 == 0 or config % 4 == 1:
+            if config % 4 in (1,2):
                 return FLUSH_INV
             else:
                 return WRITE_INV

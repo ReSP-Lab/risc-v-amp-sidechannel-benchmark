@@ -22,26 +22,56 @@
 #ifndef __UNMATCHED_BOARD_H
 #define __UNMATCHED_BOARD_H
 
+#include <stdint.h>
+
 /* CONSTANTS */
 
 /* Board-specific constants */
 #define CACHE_LINE      64 // 64B cache block
-#define L1_CACHE_SIZE   32*1024
-#define L1_ASSOC        8
-#define L2_CACHE_SIZE   2*1024*1024
+#define L1D_CACHE_SIZE  (32*1024)
+#define L1D_ASSOC       8
+#define L1I_CACHE_SIZE  (32*1024)
+#define L1I_ASSOC       4
+#ifndef I_CACHE_ANALYSIS
+#define L1_CACHE_SIZE   L1D_CACHE_SIZE
+#define L1_ASSOC        L1D_ASSOC
+#else
+#define L1_CACHE_SIZE   L1I_CACHE_SIZE
+#define L1_ASSOC        L1I_ASSOC
+#endif // !I_CACHE
+#define L2_CACHE_SIZE   (2*1024*1024)
 #define L2_ASSOC        16
+
+#ifndef AMP_SETUP
 #define NO_FLUSH
+#endif /* !AMP_SETUP */
 #define NO_L3_CACHE
+#define NO_RDTIME
 
 /* Eviction strategy parameters */
-#define L1_S L1_ASSOC+2
-#define L1_D L1_S-1
-#define L1_C 4
-#define L1_L 1
-#define L2_C 4
-#define L2_S L2_ASSOC+4
-#define L2_D L2_S-1
-#define L2_L 1
+#define L1D_S   (L1D_ASSOC+2)
+#define L1D_D   (L1D_S-1)
+#define L1D_C   4
+#define L1D_L   1
+#define L1I_S   (L1I_ASSOC+2)
+#define L1I_D   (L1I_S-1)
+#define L1I_C   4
+#define L1I_L   1
+#ifndef I_CACHE_ANALYSIS
+#define L1_S    L1D_S
+#define L1_D    L1D_D
+#define L1_C    L1D_C
+#define L1_L    L1D_L
+#else
+#define L1_S    L1I_S
+#define L1_D    L1I_D
+#define L1_C    L1I_C
+#define L1_L    L1I_L
+#endif // !I_CACHE
+#define L2_C    4
+#define L2_S    (L2_ASSOC+4)
+#define L2_D    (L2_S-1)
+#define L2_L    1
 
 /* CPU definitions */
 #define LOCAL_CPU1  1
@@ -50,13 +80,68 @@
 #define REMOTE_CPU2 2
 #define REST_CPU    3
 
+#define LOCAL_HART1  1
+#define LOCAL_HART2  1
+#define REMOTE_HART1 2
+#define REMOTE_HART2 2
+
 #define MULTICORE
+
+#define AMP_BASE                0x82000000
 
 /* Board-specific inline instructions */
 __attribute__((always_inline))
-static inline void flush(size_t char_ptr)
+static inline void flush(char* char_ptr)
 {
-    // not needed
+    /* This Flush64 instruction is only available in M-mode.
+     * To flush, you have to write the target address in the dedicated
+     * register in memory. Memory address of this register is given by:
+     *  - L2 cache controller memory map base address (0x0201_0000)
+     *  - Flush64 register offset (0x200)
+     */
+    const uint64_t* flush64_addr = (uint64_t*) 0x02010200;  // 0x0201_0200
+    asm __volatile__(
+	    "sd %[c],    0(%[flush64_reg]) \n"
+        :
+        : [c] "r" (char_ptr), [flush64_reg] "r" (flush64_addr)
+        : "a7", "memory"
+    );
+}
+
+__attribute__((always_inline))
+static inline void iflush()
+{
+    asm __volatile__ ("fence.i");         // FENCE.I
+}
+
+static inline void platform_init()
+{
+    // no initialization required
+}
+
+static inline void publish(char* p)
+{
+    /*
+    asm __volatile__("fence iorw, iorw");
+    flush(p);
+    */
+    asm __volatile__("fence iorw, iorw");
+}
+
+static inline void publish_range(char* base, char* end)
+{ /* for this SBC, it was not required to flush AMP output data */
+    /*
+    if ((uint64_t) base >= (uint64_t) end)
+        return;
+    char* new_base = (char*) ((uint64_t) base - (uint64_t) base % CACHE_LINE);
+
+    asm __volatile__("fence iorw, iorw");
+    for (char* p = new_base; p < end; p+= CACHE_LINE)
+    {
+        flush(p);
+    }
+    */
+    asm __volatile__("fence iorw, iorw");
 }
 
 #endif // !__UNMATCHED_BOARD_H

@@ -25,7 +25,7 @@
 #include "stdint.h"
 #include "asm_functions.h"
 
-void evict(char** array, int c, int d, int l, int s);
+void evict(char** array, int c, int d, int l, int s, void (*operation)(char*));
 
 void evict_offset(
         char** array, uint64_t inner_offset, uint64_t outer_offset,

@@ -1,0 +1,55 @@
+/dts-v1/;
+// magic:       0xd00dfeed
+// totalsize:       0x825458 (8541272)
+// off_dt_struct:   0x38
+// off_dt_strings:  0x825064
+// off_mem_rsvmap:  0x28
+// version:     17
+// last_comp_version:   16
+// boot_cpuid_phys: 0x0
+// size_dt_strings: 0x6c
+// size_dt_struct:  0x82502c
+
+/ {
+    timestamp = <0x655cb411>;
+    description = "U-Boot fitImage for the BeagleV-Fire";
+    #address-cells = <0x00000002>;
+    images {
+        kernel {
+            description = "Linux kernel";
+            type = "kernel";
+            arch = "riscv";
+            os = "linux";
+            compression = "gzip";
+            data = /incbin/("kernel.bin");
+            load = <0x80200000>;
+            entry = <0x80200000>;
+            /*
+            hash-1 {
+                value = <0xe1b6aabc 0x46ae6c2f 0xae56d419 0xd0df7ee9 0x71f61410 0x55d7593e 0x190e90f9 0x739af4a1>;
+                algo = "sha256";
+            };
+            */
+        };
+        base_fdt {
+            description = "Flattened Device Tree blob";
+            type = "flat_dt";
+            arch = "riscv";
+            compression = "none";
+            data = /incbin/("base_fdt.dtb");
+            load = <0x8a000000>;
+        };
+    };
+    configurations {
+        default = "kernel_dtb";
+        kernel_dtb {
+            description = "1 Linux kernel, FDT blob";
+            kernel = "kernel";
+            fdt = "base_fdt";
+        };
+        base_dtb {
+            description = "Base FDT blob for BeagleV-Fire board";
+            fdt = "base_fdt";
+        };
+    };
+};

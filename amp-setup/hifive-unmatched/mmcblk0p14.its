@@ -1,0 +1,56 @@
+/dts-v1/;
+// magic:		0xd00dfeed
+// totalsize:		0xef531 (980273)
+// off_dt_struct:	0x38
+// off_dt_strings:	0xef0c8
+// off_mem_rsvmap:	0x28
+// version:		17
+// last_comp_version:	16
+// boot_cpuid_phys:	0x0
+// size_dt_strings:	0x83
+// size_dt_struct:	0xef090
+
+/ {
+    timestamp = <0x68878925>;
+    description = "Configuration to load OpenSBI before U-Boot";
+    #address-cells = <0x00000002>;
+    images {
+        uboot {
+            description = "U-Boot";
+            type = "standalone";
+            os = "U-Boot";
+            arch = "riscv";
+            compression = "none";
+            load = <0x00000000 0x80200000>;
+	        data = /incbin/("u-boot.bin");
+        };
+        opensbi {
+            description = "OpenSBI fw_dynamic Firmware";
+            type = "firmware";
+            os = "opensbi";
+            arch = "riscv";
+            compression = "none";
+            load = <0x00000000 0x80000000>;
+            entry = <0x00000000 0x80000000>;
+	        data = /incbin/("fw_dynamic.bin");
+        };
+        fdt-1 {
+            description = "hifive-unmatched-a00";
+            type = "flat_dt";
+            compression = "none";
+            offset = <0x00000000>;
+            size = <0x00000000>;
+            image-pos = <0x00000000>;
+	        data = /incbin/("fdt-1.dtb");
+        };
+    };
+    configurations {
+        default = "conf-1";
+        conf-1 {
+            description = "hifive-unmatched-a00";
+            firmware = "opensbi";
+            loadables = "uboot";
+            fdt = "fdt-1";
+        };
+    };
+};

@@ -30,6 +30,6 @@
 
 // t test
 // calculate a p-value based on an array
-double Pvalue (const double *restrict ARRAY1, const size_t ARRAY1_SIZE, const double *restrict ARRAY2, const size_t ARRAY2_SIZE);
+double Pvalue (const double *restrict array1, const size_t n1, const double *restrict array2, const size_t n2);
 
 #endif // !__STAT_H

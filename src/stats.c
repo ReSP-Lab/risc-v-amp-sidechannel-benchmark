@@ -22,72 +22,71 @@
 
 #include "stats.h"
 
-double Pvalue (const double *restrict ARRAY1, const size_t ARRAY1_SIZE, const double *restrict ARRAY2, const size_t ARRAY2_SIZE) {
-    if (ARRAY1_SIZE <= 1) {
+double Pvalue (const double *restrict array1, const size_t n1, const double *restrict array2, const size_t n2) {
+    if (n1 <= 1) {
         return 1.0;
-    } else if (ARRAY2_SIZE <= 1) {
+    } else if (n2 <= 1) {
         return 1.0;
     }
-    double fmean1 = 0.0, fmean2 = 0.0;
+    double m1 = 0.0, m2 = 0.0;
 
-    // get sum of values in ARRAY1
-    for (size_t x = 0; x < ARRAY1_SIZE; x++) {
+    // get sum of values in array1
+    for (size_t x = 0; x < n1; x++) {
         // check to make sure this is a real number
-        if (isfinite(ARRAY1[x]) == 0) {
+        if (isfinite(array1[x]) == 0) {
             puts("Got a non-finite number in 1st array, can't calculate P-value.");
             exit(EXIT_FAILURE);
         }
-        fmean1 += ARRAY1[x];
+        m1 += array1[x];
     }
-    fmean1 /= ARRAY1_SIZE;
+    m1 /= n1;
 
-    //get sum of values in ARRAY2
-    for (size_t x = 0; x < ARRAY2_SIZE; x++) {
+    //get sum of values in array2
+    for (size_t x = 0; x < n2; x++) {
         //check to make sure this is a real number
-        if (isfinite(ARRAY2[x]) == 0) {
+        if (isfinite(array2[x]) == 0) {
             puts("Got a non-finite number in 2nd array, can't calculate P-value.");
             exit(EXIT_FAILURE);
         }
-        fmean2 += ARRAY2[x];
+        m2 += array2[x];
     }
-    fmean2 /= ARRAY2_SIZE;
+    m2 /= n2;
 
-    // printf("mean1 = %lf mean2 = %lf\n", fmean1, fmean2);
+    // printf("mean1 = %lf mean2 = %lf\n", m1, m2);
     // if the means are equal, the p-value is 1, leave the function
-    if (fmean1 == fmean2) {
-        printf("the means are equal\n");
+    if (m1 == m2) {
+        printf("[DEBUG] the means are equal\n");
         return 1.0;
     }
-    double unbiased_sample_variance1 = 0.0, unbiased_sample_variance2 = 0.0;
 
-    //1st part of added unbiased_sample_variance
-    for (size_t x = 0; x < ARRAY1_SIZE; x++)
+    // variance estimate
+    double v1 = 0.0, v2 = 0.0;
+
+    //1st part of added v
+    for (size_t x = 0; x < n1; x++)
     {
-        unbiased_sample_variance1 += (ARRAY1[x]-fmean1)*(ARRAY1[x]-fmean1);
+        v1 += (array1[x]-m1)*(array1[x]-m1);
     }
-    for (size_t x = 0; x < ARRAY2_SIZE; x++)
+    for (size_t x = 0; x < n2; x++)
     {
-        unbiased_sample_variance2 += (ARRAY2[x]-fmean2)*(ARRAY2[x]-fmean2);
+        v2 += (array2[x]-m2)*(array2[x]-m2);
     }
-    // printf("unbiased_sample_variance1 = %%lf\\tunbiased_sample_variance2 = %%lf\n",unbiased_sample_variance1,unbiased_sample_variance2);//DEBUGGING
-    unbiased_sample_variance1 = unbiased_sample_variance1/(ARRAY1_SIZE-1);
-    unbiased_sample_variance2 = unbiased_sample_variance2/(ARRAY2_SIZE-1);
-    const double WELCH_T_STATISTIC = (fmean1-fmean2)/sqrt(unbiased_sample_variance1/ARRAY1_SIZE+unbiased_sample_variance2/ARRAY2_SIZE);
-    const double DEGREES_OF_FREEDOM = pow((unbiased_sample_variance1/ARRAY1_SIZE+unbiased_sample_variance2/ARRAY2_SIZE),2.0)//numerator
-    /
-    (
-        (unbiased_sample_variance1*unbiased_sample_variance1)/(ARRAY1_SIZE*ARRAY1_SIZE*(ARRAY1_SIZE-1))+
-        (unbiased_sample_variance2*unbiased_sample_variance2)/(ARRAY2_SIZE*ARRAY2_SIZE*(ARRAY2_SIZE-1))
-    );
-//  printf("Welch = %%lf DOF = %%lf\n", WELCH_T_STATISTIC, DEGREES_OF_FREEDOM);
-    const double a = DEGREES_OF_FREEDOM/2;
-    double value = DEGREES_OF_FREEDOM/(WELCH_T_STATISTIC*WELCH_T_STATISTIC+DEGREES_OF_FREEDOM);
+    // printf("v1 = %lf\\tv2 = %lf\n",v1,v2);//DEBUGGING
+    v1 = v1/(n1-1);
+    v2 = v2/(n2-1);
+
+    if (v1 ==  0.0 && v2 == 0.0)
+        return m1 == m2 ? 1.0 : 0.0;
+
+    const double t = (m1-m2)/sqrt(v1/n1+v2/n2);
+    const double dof = pow((v1/n1+v2/n2),2.0)//numerator
+            / ((v1*v1)/(n1*n1*(n1-1))+(v2*v2)/(n2*n2*(n2-1)));
+//  printf("Welch = %lf DOF = %lf\n", t, dof);
+//
+    const double a = dof/2;
+    double value = dof/(t*t+dof);
     if ((isinf(value) != 0) || (isnan(value) != 0)) {
-        printf("free degree1\n");
-        return 1.0;
-    }
-    if ((isinf(value) != 0) || (isnan(value) != 0)) {
-        printf("free degree2\n");
+        printf("free degree\n");
         return 1.0;
     }
     const double beta = lgammal(a)+0.57236494292470009-lgammal(a+0.5);

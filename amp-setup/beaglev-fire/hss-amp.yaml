@@ -1,0 +1,25 @@
+set-name: 'BeagleV-Fire::AMP'
+
+hart-entry-points:
+  u54_1: '0x80200000'
+  u54_2: '0x82000000'
+  u54_3: '0x82000000'
+  u54_4: '0x80200000'
+
+payloads:
+  amp_loader.bin:
+    exec-addr: '0x82000000'
+    owner-hart: u54_2
+    secondary-hart: u54_3
+    priv-mode: prv_m
+    skip-opensbi: true
+
+  u-boot.bin:
+    exec-addr: '0x80200000'
+    owner-hart: u54_1
+    secondary-hart: u54_4
+    priv-mode: prv_s
+    skip-opensbi: false
+    allow-reboot: cold
+    #ancilliary-data: uboot-amp.dtb
+

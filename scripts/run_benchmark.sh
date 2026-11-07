@@ -24,17 +24,20 @@
 
 set -e
 
-target_name=$1
-output_name=$2
+input_folder=$1
+output_folder=$2
+output_name=$3
+
+mkdir -p $output_folder
 
 i=0
-for file in `find . -name '*AccOne*AccTwo*AccThr*' | grep $target_name | sed 's_./__' | sort -n`
+for file in `find "$input_folder" -maxdepth 1 -type f -name '*AccOne*AccTwo*AccThr*' | sort -n`
 do
   echo "i is $i"
   let i=$i+1
   filename=$(echo "$file" | sed 's_.*/__')
   echo "Executing: file $filename"
-  ./${file} ./benchmark_output/$output_name > /dev/null &
+  ${file} $output_folder/$output_name > /dev/null &
 
   ps
   PID2=$(ps -ef | grep ${file} | awk '{print $2}')

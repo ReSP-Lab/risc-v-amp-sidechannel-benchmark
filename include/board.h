@@ -29,8 +29,9 @@
 #define BOARD_UNMATCHED     1
 #define BOARD_BV_AHEAD      2
 #define BOARD_BV_FIRE       3
-#define BOARD_PIONEER       4
-#define BOARD_ESP32_C6      5
+#define BOARD_BPI_F3        4
+#define BOARD_BPI_RV2       5
+
 
 #ifndef BOARD
     #error "No board defined. Use '-DBOARD=...' to define it."
@@ -46,7 +47,13 @@
 #elif TARGET(BOARD) == BOARD_BV_FIRE
 #include "boards/bv_fire.h"
 
-#elif TARGET(BOARD) == BOARD_ESP32_C6
+#elif TARGET(BOARD) == BOARD_BPI_F3
+#include "boards/bpi_f3.h"
+
+#elif TARGET(BOARD) == BOARD_BPI_RV2
+#include "boards/bpi_rv2.h"
+
+//#elif TARGET(BOARD) == BOARD_ESP32_C6
     //#define NO_L2_CACHE
     //#define SINGLE_CORE
 
@@ -65,17 +72,23 @@
 #endif
 
 #if defined(L1_CACHE_SIZE) && defined(L1_ASSOC)
-#define L1_CACHE_SETS L1_CACHE_SIZE/(L1_ASSOC*CACHE_LINE)
+#ifndef L1_CACHE_SETS
+#define L1_CACHE_SETS (L1_CACHE_SIZE/(L1_ASSOC*CACHE_LINE))
+#endif // !L1_CACHE_SETS
 #endif
 
 
 #if defined(L2_CACHE_SIZE) && defined(L2_ASSOC)
-#define L2_CACHE_SETS L2_CACHE_SIZE/(L2_ASSOC*CACHE_LINE)
+#ifndef L2_CACHE_SETS
+#define L2_CACHE_SETS (L2_CACHE_SIZE/(L2_ASSOC*CACHE_LINE))
+#endif // !L2_CACHE_SETS
 #endif
 
 
 #if defined(L3_CACHE_SIZE) && defined(L3_ASSOC)
-#define L3_CACHE_SETS L3_CACHE_SIZE/(L3_ASSOC*CACHE_LINE)
+#ifndef L3_CACHE_SETS
+#define L3_CACHE_SETS (L3_CACHE_SIZE/(L3_ASSOC*CACHE_LINE))
+#endif // !L3_CACHE_SETS
 #endif
 
 #ifdef NO_L2_CACHE
@@ -84,32 +97,41 @@
 #endif /* ifndef NO_L3_CACHE */
 #endif /* ifdef NO_L2_CACHE */
 
+#define SIZE_GT_FACTOR  4
 #ifdef NO_L2_CACHE
 #ifdef L1_CACHE_SIZE
-#define SIZE_GT_LLC   16*L1_CACHE_SIZE
+#define SIZE_GT_LLC   (SIZE_GT_FACTOR*L1_CACHE_SIZE)
 #endif /* ifdef L1_CACHE_SIZE */
 #elif defined(NO_L3_CACHE)
 #ifdef L2_CACHE_SIZE
-#define SIZE_GT_LLC   16*L2_CACHE_SIZE
+#define SIZE_GT_LLC   (SIZE_GT_FACTOR*L2_CACHE_SIZE)
 #endif /* ifdef L2_CACHE_SIZE */
 #else /* !NO_L2_CACHE && !NO_L3_CACHE */
 #if defined(L3_CACHE_SIZE)
-#define SIZE_GT_LLC   16*L3_CACHE_SIZE
+#define SIZE_GT_LLC   (SIZE_GT_FACTOR*L3_CACHE_SIZE)
 #endif /* ifdef L3_CACHE_SIZE */
 #endif /* ifdef NO_L2_CACHE */
 
-#define L1_TOTAL_WAYS   L1_CACHE_SETS*L1_ASSOC
+#define L1_TOTAL_WAYS   (L1_CACHE_SETS*L1_ASSOC)
 #ifndef NO_L2_CACHE
-#define L2_TOTAL_WAYS   L2_CACHE_SETS*L2_ASSOC
+#define L2_TOTAL_WAYS   (L2_CACHE_SETS*L2_ASSOC)
 #endif /* ifndef NO_L2_CACHE */
 
-#define L1_STRIDE       L1_CACHE_SETS*CACHE_LINE
+#define L1_STRIDE       (L1_CACHE_SETS*CACHE_LINE)
 #ifndef NO_L2_CACHE
-#define L2_STRIDE       L2_CACHE_SETS*CACHE_LINE
+#define L2_STRIDE       (L2_CACHE_SETS*CACHE_LINE)
 #endif /* ifndef NO_L2_CACHE */
 #ifndef NO_L3_CACHE
-#define L3_STRIDE       L3_CACHE_SETS*CACHE_LINE
+#define L3_STRIDE       (L3_CACHE_SETS*CACHE_LINE)
 #endif /* ifndef NO_L3_CACHE */
+
+#ifndef NO_L3_CACHE
+#define LLC_STRIDE      L3_STRIDE
+#elif !defined(NO_L2_CACHE)
+#define LLC_STRIDE      L2_STRIDE
+#else
+#define LLC_STRIDE      L1_STRIDE
+#endif // !NO_L3_CACHE
 
 
 #define L1 0
@@ -141,6 +163,5 @@
 #else
 #define DIFF_CORE_ONLY  2
 #endif /* if LOCAL/REMOTE_CPU1 == LOCAL/REMOTE_CPU2 */
-
 
 #endif // !__BOARD_H

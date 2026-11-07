@@ -96,9 +96,9 @@
                         *(D_MAX_L3+1-D_MIN)\
                         *(S_MAX_L3+1-S_MIN_L3)
 #endif /* ifdef NO_L3_CACHE */
-#define NUM_STRATEGIES  NUM_L1_STRATS+NUM_L2_STRATS+NUM_L3_STRATS
+#define NUM_STRATEGIES  (NUM_L1_STRATS+NUM_L2_STRATS+NUM_L3_STRATS)
 
-#define START_ARR_SIZE  NUM_CANDIDATES+1
+#define START_ARR_SIZE  (NUM_CANDIDATES+1)
 
 
 /* VARIABLES */
